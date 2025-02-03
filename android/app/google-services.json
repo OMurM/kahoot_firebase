@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "838036999945",
+    "project_id": "flutterdatabase-a382c",
+    "storage_bucket": "flutterdatabase-a382c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:838036999945:android:2f55058c1006a143ab0dd8",
+        "android_client_info": {
+          "package_name": "com.example.kahoot_firebase"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBRBrVogXrzAa8rmI_tMpPv4SM9lFAAi6Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
