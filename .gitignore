@@ -33,6 +33,16 @@ migrate_working_dir/
 .pub/
 /build/
 
+# Flutter temporary files
+.dart_tool/
+.build/
+android/.gradle/
+ios/Pods/
+linux/flutter/
+macos/Flutter/
+windows/flutter/
+web/.dart_tool/
+
 # Symbolication related
 app.*.symbols
 
