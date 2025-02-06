@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -12,6 +13,13 @@ class HostScreen extends StatefulWidget {
 class _HostScreenState extends State<HostScreen> {
   String? quizCode;
   List<Map<String, dynamic>> participants = [];
+  StreamSubscription? _participantsSubscription;
+  bool _gameStarted = false;
+
+  @override
+  void initState() {
+    super.initState();
+  }
 
   Future<void> _startQuiz() async {
     var uuid = Uuid();
@@ -21,6 +29,10 @@ class _HostScreenState extends State<HostScreen> {
       quizCode = code;
     });
 
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Quiz Code generado: $quizCode')),
+    );
+
     try {
       final response = await Supabase.instance.client
           .from('rooms')
@@ -29,36 +41,72 @@ class _HostScreenState extends State<HostScreen> {
 
       if (response.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to insert quiz code')),
+          const SnackBar(content: Text('Error: No se pudo insertar el código en la DB')),
         );
       } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Código insertado correctamente')),
+        );
         _listenForParticipants();
       }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error inserting data: $error')),
+        SnackBar(content: Text('Error al insertar datos: $error')),
       );
     }
   }
 
   void _listenForParticipants() {
-    Supabase.instance.client
+    if (quizCode == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: quizCode es null, no se puede escuchar participantes')),
+      );
+      return;
+    }
+
+    _participantsSubscription = Supabase.instance.client
         .from('participants')
         .stream(primaryKey: ['id'])
-        .eq('room_code', quizCode as Object)
+        .eq('room_code', quizCode!.trim().toUpperCase())
         .listen((data) {
+      if (_gameStarted) {
+        _participantsSubscription?.cancel();
+        return;
+      }
+
+      if (data.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se encontraron participantes')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('🎉 Participantes actualizados: ${data.length}')),
+        );
+      }
+
       setState(() {
-        participants = data;
+        participants = List.from(data);
       });
     });
   }
 
   void _startGame() {
+    setState(() {
+      _gameStarted = true;
+    });
+
+    _participantsSubscription?.cancel();
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Quiz has started!')),
     );
-    // Aquí puedes implementar la lógica para iniciar el quiz
+  }
+
+  @override
+  void dispose() {
+    _participantsSubscription?.cancel();
+    super.dispose();
   }
 
   @override
@@ -109,7 +157,7 @@ class _HostScreenState extends State<HostScreen> {
               const SizedBox(height: 30),
               ElevatedButton(
                 onPressed: participants.isNotEmpty ? _startGame : null,
-                child: const Text('Start Game'),                
+                child: const Text('Start Game'),
               ),
             ],
           ],
