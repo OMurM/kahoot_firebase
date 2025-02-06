@@ -106,10 +106,10 @@ class _HostScreenState extends State<HostScreen> {
                   },
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 30),
               ElevatedButton(
                 onPressed: participants.isNotEmpty ? _startGame : null,
-                child: const Text('Start Game'),
+                child: const Text('Start Game'),                
               ),
             ],
           ],
