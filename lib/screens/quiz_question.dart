@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -24,7 +26,7 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
   int _currentQuestionIndex = 0;
   List<Map<String, dynamic>> _questions = [];
   bool _isLoading = true;
-  bool _waitingForStart = true;  // Tracks if the player is waiting for the game to start
+  bool _waitingForStart = true;
 
   @override
   void initState() {
@@ -51,14 +53,12 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
   }
 
   void _setupRealtime() {
-    // Listen for changes in the room status to check if the game has started
     Supabase.instance.client
         .from('rooms')
         .stream(primaryKey: ['room_code'])
         .eq('room_code', widget.roomCode)
         .listen((data) {
-      if (data.isNotEmpty && data[0]['is_started'] == true) {
-        // Game has started, stop waiting and start the quiz
+      if (data.isNotEmpty && data[0]['is_game_started'] == true) {
         setState(() {
           _waitingForStart = false;
           _currentQuestionIndex = 0;
@@ -99,6 +99,49 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
     }
   }
 
+  void _startGame() async {
+    await Supabase.instance.client
+        .from('rooms')
+        .update({'is_game_started': true})
+        .eq('room_code', widget.roomCode);
+
+    setState(() {
+      _waitingForStart = false;
+    });
+  }
+
+  Widget _buildOption(String letter, String optionText) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+        ),
+        onPressed: widget.isHost ? null : () => _handleAnswer(letter),
+        child: Text(optionText),
+      ),
+    );
+  }
+
+  void _handleAnswer(String selectedLetter) async {
+    if (widget.isHost) return;
+
+    try {
+      bool isCorrect = selectedLetter == _currentQuestion?['correct_option'];
+      await Supabase.instance.client.from('answers').insert({
+        'room_code': widget.roomCode,
+        'question_id': _currentQuestion?['id'],
+        'participant_name': widget.playerName,
+        'selected_option': selectedLetter,
+        'is_correct': isCorrect,
+      });
+    } catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error submitting answer: $error')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -115,7 +158,6 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
     }
 
     if (_waitingForStart && !widget.isHost) {
-      // Non-host players wait for the game to start
       return Scaffold(
         appBar: AppBar(title: const Text('Waiting for Host to Start the Game')),
         body: Center(
@@ -134,9 +176,7 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
       );
     }
 
-    // Host view doesn't show the waiting state, they directly start the quiz
     if (widget.isHost && _waitingForStart) {
-      // If the host hasn't started, show the option to start the game
       return Scaffold(
         appBar: AppBar(title: const Text('Host: Start the Game')),
         body: Center(
@@ -148,7 +188,6 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
       );
     }
 
-    // Game started, show the quiz question
     return Scaffold(
       appBar: AppBar(title: const Text('Quiz Question')),
       body: Padding(
@@ -156,18 +195,27 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Display only question label, no options yet
             Text(
-              widget.isHost ? 'Question ${_currentQuestionIndex + 1}' : 'Answer the Question',
+              widget.isHost
+                  ? 'Question ${_currentQuestionIndex + 1}'
+                  : 'Answer the Question',
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 20),
+            if (_currentQuestion != null)
+              Text(
+                _currentQuestion!['question_text'] ?? '',
+                style: const TextStyle(fontSize: 20),
+                textAlign: TextAlign.center,
+              ),
             const SizedBox(height: 30),
-            // Show only option labels: A, B, C, D
-            _buildOption('A'),
-            _buildOption('B'),
-            _buildOption('C'),
-            _buildOption('D'),
+            if (_currentQuestion != null) ...[
+              _buildOption("A", _currentQuestion!['option_a']),
+              _buildOption("B", _currentQuestion!['option_b']),
+              _buildOption("C", _currentQuestion!['option_c']),
+              _buildOption("D", _currentQuestion!['option_d']),
+            ],
             if (widget.isHost) ...[
               const SizedBox(height: 30),
               Row(
@@ -188,47 +236,5 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
         ),
       ),
     );
-  }
-
-  Widget _buildOption(String optionLabel) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-        ),
-        onPressed: () => _handleAnswer(optionLabel),
-        child: Text(optionLabel),
-      ),
-    );
-  }
-
-  void _handleAnswer(String selectedOption) async {
-    if (widget.isHost) return;
-
-    try {
-      await Supabase.instance.client.from('answers').insert({
-        'room_code': widget.roomCode,
-        'question_id': _currentQuestion?['id'],
-        'participant_name': widget.playerName,
-        'selected_option': selectedOption,
-        'is_correct': selectedOption == _currentQuestion?['correct_option'],
-      });
-    } catch (error) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error submitting answer: $error')),
-      );
-    }
-  }
-
-  void _startGame() async {
-    await Supabase.instance.client
-        .from('rooms')
-        .update({'is_started': true})
-        .eq('room_code', widget.roomCode);
-
-    setState(() {
-      _waitingForStart = false;
-    });
   }
 }

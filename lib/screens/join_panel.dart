@@ -1,7 +1,9 @@
-// screens/join_panel.dart
+// ignore_for_file: use_build_context_synchronously
+
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'quiz_question.dart'; // Ensure this is imported
+import 'quiz_question.dart';
 
 class JoinScreen extends StatefulWidget {
   const JoinScreen({super.key});
@@ -14,7 +16,42 @@ class _JoinScreenState extends State<JoinScreen> {
   final TextEditingController _quizCodeController = TextEditingController();
   final TextEditingController _playerNameController = TextEditingController();
   bool _isLoading = false;
-  final bool _isGameStarted = false;
+  bool _isGameStarted = false;
+
+  late final StreamSubscription<List<Map<String, dynamic>>> _subscription;
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
+
+  void _setupRealtime(String quizCode) {
+    _subscription = Supabase.instance.client
+        .from('rooms')
+        .stream(primaryKey: ['room_code'])
+        .eq('room_code', quizCode)
+        .listen((data) {
+      if (mounted) {
+        setState(() {
+          _isGameStarted = data.isNotEmpty && data[0]['is_game_started'] == true;
+          if (_isGameStarted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => QuizQuestionScreen(
+                  roomCode: quizCode,
+                  isHost: false,
+                  playerName: _playerNameController.text.trim(),
+                  isGameStarted: _isGameStarted,
+                ),
+              ),
+            );
+          }
+        });
+      }
+    });
+  }
 
   Future<void> joinQuiz() async {
     final quizCode = _quizCodeController.text.trim().toUpperCase();
@@ -44,6 +81,8 @@ class _JoinScreenState extends State<JoinScreen> {
         return;
       }
 
+      _isGameStarted = roomResponse['is_game_started'] ?? false;
+ 
       final existingPlayers = await Supabase.instance.client
           .from('participants')
           .select()
@@ -60,8 +99,8 @@ class _JoinScreenState extends State<JoinScreen> {
         'participant_name': playerName,
       });
 
-      if (!mounted) return;
-      
+      _setupRealtime(quizCode);
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(

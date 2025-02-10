@@ -19,6 +19,11 @@ class _HostScreenState extends State<HostScreen> {
   bool isGameStarted = false;
 
   Future<void> _startQuiz() async {
+    if (quizCode != null) {
+      print("Quiz code already exists: $quizCode");
+      return;
+    }
+
     var uuid = Uuid();
     String code = uuid.v4().substring(0, 4).toUpperCase();
 
@@ -33,17 +38,22 @@ class _HostScreenState extends State<HostScreen> {
           .select();
 
       if (response.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to insert quiz code')),
-        );
-      } else {
-        _listenForParticipants();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to insert quiz code')),
+          );
+        }
+        return;
       }
+
+      _listenForParticipants();
     } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error inserting data: $error')),
-      );
+      print("Error inserting data: $error");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error inserting data: $error')),
+        );
+      }
     }
   }
 
@@ -55,54 +65,62 @@ class _HostScreenState extends State<HostScreen> {
         .stream(primaryKey: ['id'])
         .eq('room_code', quizCode!)
         .listen((data) {
-      setState(() {
-        participants = data;
-      });
+      if (mounted) {
+        setState(() {
+          participants = data;
+        });
+      }
     });
   }
 
-  void _startGame() async {
-    setState(() {
-      isGameStarted = true;
-    });
-
-    if (quizCode == null) return;
+  Future<void> _startGame() async {
+    if (quizCode == null || participants.isEmpty || isGameStarted) return;
 
     try {
       print("Starting the game for room code: $quizCode");
 
-         final response = await Supabase.instance.client
+      final response = await Supabase.instance.client
           .from('rooms')
           .update({'is_game_started': true})
           .eq('room_code', quizCode!)
-          .select();  
-
+          .select();
 
       if (response.isEmpty) {
         print("No response or empty response.");
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to start game: No response')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to start game: No response')),
+          );
+        }
         return;
       }
 
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => QuizQuestionScreen(
-            roomCode: quizCode!,
-            isHost: true,
-            playerName: 'Host',
-            isGameStarted: isGameStarted,
+      if (mounted) {
+        setState(() {
+          isGameStarted = true;
+        });
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => QuizQuestionScreen(
+              roomCode: quizCode!,
+              isHost: true,
+              playerName: 'Host',
+              isGameStarted: true,
+            ),
           ),
-        ),
-      );
-      print("Navigating to QuizQuestionScreen");
+        );
+
+        print("Navigating to QuizQuestionScreen");
+      }
     } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error starting the game: $error')),
-      );
+      print("Error starting the game: $error");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error starting the game: $error')),
+        );
+      }
     }
   }
 
@@ -141,7 +159,8 @@ class _HostScreenState extends State<HostScreen> {
                 'Participants:',
                 style: TextStyle(fontSize: 20),
               ),
-              Expanded(
+              SizedBox(
+                height: 200,
                 child: ListView.builder(
                   itemCount: participants.length,
                   itemBuilder: (context, index) {
@@ -155,9 +174,9 @@ class _HostScreenState extends State<HostScreen> {
               ElevatedButton(
                 onPressed: participants.isNotEmpty && !isGameStarted
                     ? () {
-                      print('Starting the game');
-                      _startGame();
-                    }
+                        print('Starting the game');
+                        _startGame();
+                      }
                     : null,
                 child: const Text('Start Game'),
               ),
