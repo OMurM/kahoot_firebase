@@ -126,18 +126,38 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
   void _handleAnswer(String selectedLetter) async {
     if (widget.isHost) return;
 
+    if (_currentQuestion == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No current question available'))
+      );
+      return;
+    } 
+
     try {
-      bool isCorrect = selectedLetter == _currentQuestion?['correct_option'];
+      final String correctOption = _currentQuestion!['correct_option'].toString().trim();
+      final String userSelection = selectedLetter.trim();
+
+      bool isCorrect = userSelection == correctOption;
+
       await Supabase.instance.client.from('answers').insert({
         'room_code': widget.roomCode,
-        'question_id': _currentQuestion?['id'],
+        'question_id': _currentQuestion!['id'],
         'participant_name': widget.playerName,
-        'selected_option': selectedLetter,
+        'selected_option': userSelection,
         'is_correct': isCorrect,
-      });
+        });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(isCorrect ? 'Correct answer!' : 'Wrong answer')),
+      );
+
+      if (isCorrect) {
+        _nextQuestion();
+      }
+      
     } catch (error) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error submitting answer: $error')),
+        SnackBar(content: Text('Error submiting the answer: $error')),
       );
     }
   }
