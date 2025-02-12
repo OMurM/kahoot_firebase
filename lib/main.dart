@@ -7,6 +7,7 @@ import 'screens/quiz_control_panel.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Tendria que estar en un env para mas seguridad
   await Supabase.initialize(
     url: 'https://vjimqdckjabewzprhpzd.supabase.co',
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZqaW1xZGNramFiZXd6cHJocHpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzg3Njg5NTMsImV4cCI6MjA1NDM0NDk1M30.tf_3Yc0_y_tMrSHckyn74sB2lntQVrwvgHiGSXln7uo',
